@@ -1,3 +1,4 @@
+import time
 from stable_baselines3 import PPO
 from minesweeper_env import FastWebMinesweeperEnv
 
@@ -16,6 +17,10 @@ model = PPO(
     verbose=1
 )
 
+print("Waiting 5 seconds before starting...")
+time.sleep(5)
+
 print("Starting high-speed training...")
 model.learn(total_timesteps=50000)
 model.save("ppo-web-minesweeper")
+env.close()
