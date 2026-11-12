@@ -49,7 +49,13 @@ base_env = WebFNAFEnv(url="http://localhost:8000/FNAF.html")
 env = Monitor(base_env)
 
 # Load your pre-trained Night 1 weights so it starts with existing knowledge!
-pretrained_path = "ppo-fnaf-night1.zip"
+# Check for the latest Nights 1 & 2 checkpoint first, then fall back to Night 1
+if os.path.exists("ppo-fnaf-nights1-2.zip"):
+    pretrained_path = "ppo-fnaf-nights1-2.zip"
+elif os.path.exists("ppo-fnaf-night1.zip"):
+    pretrained_path = "ppo-fnaf-night1.zip"
+else:
+    pretrained_path = None
 if os.path.exists(pretrained_path):
     print(f"Loading pre-trained Night 1 model from {pretrained_path}...")
     model = PPO.load(

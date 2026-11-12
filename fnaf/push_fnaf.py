@@ -4,7 +4,7 @@ from huggingface_hub import HfApi
 
 REPO_ID = "Frenchwizz/FNAF-Night1-PPO"  # Change repo name if desired
 MODEL_FILE = "ppo-fnaf-night1.zip"
-RAW_VIDEO = "fnaf_trained_replay.mp4"
+RAW_VIDEO = "fnaf_nights1_2_replay.mp4"
 HF_VIDEO = "replay.mp4"
 
 # 1. Convert video to H.264 yuv420p so Hugging Face's Video Preview widget plays it natively
