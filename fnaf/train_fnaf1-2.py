@@ -17,8 +17,8 @@ class Nights1And2Callback(BaseCallback):
         dones = self.locals.get("dones", [])
         infos = self.locals.get("infos", [{}])
 
-        if len(dones) > 0 and dones and rewards >= 90.0:
-            night = infos.get("night", 1)
+        if len(dones) > 0 and dones[0] and rewards[0] >= 90.0:
+            night = infos[0].get("night", 1)
             if night == 1:
                 self.night1_wins += 1
                 self.model.save(self.save_path)
@@ -40,7 +40,10 @@ class Nights1And2Callback(BaseCallback):
 
                 if self.night2_wins >= self.target_night2_wins:
                     if self.verbose > 0:
-                        print(f"[Curriculum] Mastered Nights 1 & 2 ({self.target_night2_wins} Night 2 wins)! Stopping...", flush=True)
+                        print(
+                            f"[Curriculum] Mastered Nights 1 & 2 ({self.target_night2_wins} Night 2 wins)! Stopping...",
+                            flush=True,
+                        )
                     return False
 
         return True
@@ -48,16 +51,16 @@ class Nights1And2Callback(BaseCallback):
 base_env = WebFNAFEnv(url="http://localhost:8000/FNAF.html")
 env = Monitor(base_env)
 
-# Load your pre-trained Night 1 weights so it starts with existing knowledge!
-# Check for the latest Nights 1 & 2 checkpoint first, then fall back to Night 1
+# Resume from Nights 1 & 2 checkpoint if available, otherwise start from Night 1 weights
 if os.path.exists("ppo-fnaf-nights1-2.zip"):
     pretrained_path = "ppo-fnaf-nights1-2.zip"
 elif os.path.exists("ppo-fnaf-night1.zip"):
     pretrained_path = "ppo-fnaf-night1.zip"
 else:
     pretrained_path = None
-if os.path.exists(pretrained_path):
-    print(f"Loading pre-trained Night 1 model from {pretrained_path}...")
+
+if pretrained_path and os.path.exists(pretrained_path):
+    print(f"Loading pre-trained model from {pretrained_path}...")
     model = PPO.load(
         pretrained_path,
         env=env,
@@ -69,7 +72,7 @@ if os.path.exists(pretrained_path):
         verbose=1,
     )
 else:
-    print("No ppo-fnaf-night1.zip found; initializing fresh CnnPolicy model...")
+    print("No checkpoint found; initializing fresh CnnPolicy model...")
     model = PPO(
         policy="CnnPolicy",
         env=env,
@@ -89,7 +92,7 @@ try:
         total_timesteps=100000,
         log_interval=1,
         callback=callback,
-        reset_num_timesteps=False,  # Preserves your existing step count from Night 1 training
+        reset_num_timesteps=False,
     )
 except KeyboardInterrupt:
     print("\nTraining stopped manually with Ctrl+C!")

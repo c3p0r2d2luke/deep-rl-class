@@ -4,7 +4,9 @@ from huggingface_hub import HfApi
 
 REPO_ID = "Frenchwizz/FNAF-Night1-PPO"  # Change repo name if desired
 MODEL_FILE = "ppo-fnaf-night1.zip"
-RAW_VIDEO = "fnaf_nights1_2_replay.mp4"
+RAW_VIDEO = "fnaf_trained_replay.mp4"
+# RAW_VIDEO1 = "fnaf_trained_replay.mp4"
+# RAW_VIDEO2 = "fnaf_trained.mp4"
 HF_VIDEO = "replay.mp4"
 
 # 1. Convert video to H.264 yuv420p so Hugging Face's Video Preview widget plays it natively
@@ -19,6 +21,18 @@ subprocess.run(
     ],
     check=True,
 )
+
+# print(f"Converting {RAW_VIDEO1} to H.264 {RAW_VIDEO2}...")
+# subprocess.run(
+#     [
+#         "ffmpeg", "-y",
+#         "-i", RAW_VIDEO1,
+#         "-c:v", "libx264",
+#         "-pix_fmt", "yuv420p",
+#         RAW_VIDEO2,
+#     ],
+#     check=True,
+# )
 
 # 2. Create repository if it doesn't exist yet
 api = HfApi()
@@ -58,7 +72,8 @@ tags:
 
 This is a trained **PPO (`CnnPolicy`)** agent playing a custom web-based **Five Nights at Freddy's** Gymnasium environment built with Playwright and OpenCV.
 
-## Video Replay
+## Video Replays
+<video src="fnaf_trained.mp4" controls width="100%"></video>
 <video src="replay.mp4" controls width="100%"></video>
 
 ## Model Details

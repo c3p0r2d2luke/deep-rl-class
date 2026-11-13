@@ -1,73 +1,106 @@
+import os
+import subprocess
 import cv2
 import numpy as np
 from stable_baselines3 import PPO
 from fnaf_env import WebFNAFEnv
 
-# 1. Initialize multi-night environment
-env = WebFNAFEnv(url="http://localhost:8000/FNAF.html")
+RAW_VIDEO = "fnaf_trained_replay.mp4"
+HF_VIDEO = "replay.mp4"
+VIDEO_SIZE = (640, 360)
+FOURCC = cv2.VideoWriter_fourcc(*"mp4v")
 
-# 2. Load your trained Nights 1 & 2 CNN model
+# 1. Initialize environment and load trained Nights 1 & 2 model
+env = WebFNAFEnv(url="http://localhost:8000/FNAF.html")
 model = PPO.load("ppo-fnaf-nights1-2")
 
-# 3. Set up direct OpenCV MP4 writer (640x360 @ 4 FPS)
-output_path = "fnaf_nights1_2_replay.mp4"
-video_size = (640, 360)
-fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-writer = cv2.VideoWriter(output_path, fourcc, 4.0, video_size)
-
-# Hook into _capture_raw_bgr so every frame across Night 1 & Night 2 is recorded
+writer = None
 original_capture = env._capture_raw_bgr
 
 def capture_and_record():
     bgr_img = original_capture()
-    if bgr_img is not None:
-        resized = cv2.resize(bgr_img, video_size, interpolation=cv2.INTER_AREA)
+    if bgr_img is not None and writer is not None:
+        resized = cv2.resize(bgr_img, VIDEO_SIZE, interpolation=cv2.INTER_AREA)
         writer.write(resized)
     return bgr_img
 
 env._capture_raw_bgr = capture_and_record
 
-# 4. Play Night 1, and if won, automatically continue into Night 2
-results = {}
-
-for night in range(1, 3):
-    obs, info = env.reset()
+def run_night(obs, expected_night, deterministic=True):
     done = False
     ep_reward = 0.0
     step_count = 0
+    reward = 0.0
+    info = {}
 
-    print(f"\n--- Playing & Recording Evaluation Night {night} ---", flush=True)
+    print(f"\n--- Playing & Recording Evaluation Night {expected_night} ---", flush=True)
     while not done:
-        action, _ = model.predict(obs, deterministic=False)
-        obs, reward, terminated, truncated, step_info = env.step(int(action))
+        action, _ = model.predict(obs, deterministic=deterministic)
+        obs, reward, terminated, truncated, info = env.step(int(action))
         ep_reward += reward
         step_count += 1
         done = terminated or truncated
 
         if step_count % 100 == 0:
-            print(f"[Night {night} Eval] Step {step_count} | Cumulative Reward: {ep_reward:.1f}", flush=True)
+            print(
+                f"[Eval Night {expected_night}] Step {step_count} | Cumulative Reward: {ep_reward:.1f}",
+                flush=True,
+            )
 
-    won = reward >= 90.0
-    results[night] = (won, step_count, ep_reward)
+    won = bool(info.get("won", False)) and (reward >= 90.0)
     print(
-        f"Night {night} Result: {'6 AM WIN!' if won else 'Jumpscare'} | "
+        f"\nNight {expected_night} Result: {'6 AM WIN!' if won else 'Jumpscare'} | "
         f"Steps: {step_count} | Total Reward: {ep_reward:.1f}",
         flush=True,
     )
+    return won
 
-    # Stop evaluation if Night 1 was lost (since Night 2 won't unlock automatically)
-    if not won:
-        print("Stopping evaluation because Night 1 was not cleared.", flush=True)
+attempt = 0
+try:
+    while True:
+        attempt += 1
+        print(f"\n=== Attempt #{attempt}: Starting fresh Night 1 ===", flush=True)
+
+        # Start a clean recording for each attempt so failed Night 1 runs are discarded
+        writer = cv2.VideoWriter(RAW_VIDEO, FOURCC, 4.0, VIDEO_SIZE)
+
+        obs, info = env.reset()
+        if info.get("night") != 1:
+            raise RuntimeError(f"Expected Night 1 on initial reset, got Night {info.get('night')}")
+
+        night1_won = run_night(obs, expected_night=1, deterministic=True)
+
+        if not night1_won:
+            print("Died on Night 1. Discarding recording and retrying from a fresh Night 1...", flush=True)
+            writer.release()
+            writer = None
+            continue
+
+        # Night 1 survived -> env.reset() waits 10s for Night 2 to go live without reloading the menu
+        print("\nNight 1 cleared! Waiting for Night 2 to start...", flush=True)
+        obs, info = env.reset()
+        if info.get("night") != 2:
+            raise RuntimeError(f"Expected Night 2 after transition, got Night {info.get('night')}")
+
+        # Continue recording Night 2 onto the exact same unbroken video stream
+        run_night(obs, expected_night=2, deterministic=True)
         break
+finally:
+    if writer is not None:
+        writer.release()
+    env.close()
 
-# 5. Finalize video and close browser cleanly
-writer.release()
-env.close()
-
-print("\n" + "=" * 55)
-print("FINAL NIGHTS 1 & 2 EVALUATION SUMMARY")
-print("=" * 55)
-for night, (won, steps, rew) in results.items():
-    print(f"Night {night}: {'6 AM WIN!' if won else 'Jumpscare'} | Steps: {steps} | Reward: {rew:.1f}")
-print(f"Full replay video saved to: {output_path}")
-print("=" * 55)
+    if os.path.exists(RAW_VIDEO):
+        print(f"\nRaw video saved cleanly to: {RAW_VIDEO}", flush=True)
+        print(f"Converting {RAW_VIDEO} to H.264 {HF_VIDEO}...", flush=True)
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", RAW_VIDEO,
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                HF_VIDEO,
+            ],
+            check=True,
+        )
+        print(f"Converted H.264 MP4 saved to: {HF_VIDEO}", flush=True)

@@ -12,7 +12,8 @@ tags:
 
 This is a trained **PPO (`CnnPolicy`)** agent playing a custom web-based **Five Nights at Freddy's** Gymnasium environment built with Playwright and OpenCV.
 
-## Video Replay
+## Video Replays
+<video src="fnaf_trained.mp4" controls width="100%"></video>
 <video src="replay.mp4" controls width="100%"></video>
 
 ## Model Details
